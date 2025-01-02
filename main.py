@@ -4,20 +4,33 @@ from datetime import datetime, timedelta
 import schedule
 import time
 import pandas as pd
-import oracledb
+import pymysql
 from dotenv import load_dotenv
+import argparse
 
-# 加载环境变量
-load_dotenv()
-
-class DatabaseConfig:
-    def __init__(self):
-        self.host = os.getenv('DB_HOST', 'localhost')
-        self.user = os.getenv('DB_USER', 'system')
-        self.password = os.getenv('DB_PASSWORD', '')
-        self.service_name = os.getenv('DB_NAME', 'orcl')
-        self.port = int(os.getenv('DB_PORT', '1521'))
-        self.encoding = os.getenv('DB_ENCODING', 'UTF-8')
+class EnvConfig:
+    def __init__(self, args=None):
+        # 如果提供了命令行参数，优先使用命令行参数
+        if args:
+            self.host = args.host or os.getenv('DB_HOST', 'localhost')
+            self.user = args.user or os.getenv('DB_USER', 'system')
+            self.password = args.password or os.getenv('DB_PASSWORD', '')
+            self.service_name = args.dbname or os.getenv('DB_NAME', 'orcl')
+            self.port = args.port or int(os.getenv('DB_PORT', '1521'))
+            self.encoding = args.encoding or os.getenv('DB_ENCODING', 'UTF-8')
+            self.excel_path = args.excel_path or os.getenv('EXCEL_PATH', 'report.xlsx')
+            self.sheet_name = args.sheet_name or os.getenv('SHEET_NAME', 'Sheet1')
+            self.schedule_time = args.schedule_time or os.getenv('SCHEDULE_TIME', '09:00')
+        else:
+            self.host = os.getenv('DB_HOST', 'localhost')
+            self.user = os.getenv('DB_USER', 'system')
+            self.password = os.getenv('DB_PASSWORD', '')
+            self.service_name = os.getenv('DB_NAME', 'orcl')
+            self.port = int(os.getenv('DB_PORT', '1521'))
+            self.encoding = os.getenv('DB_ENCODING', 'UTF-8')
+            self.excel_path = os.getenv('EXCEL_PATH', 'report.xlsx')
+            self.sheet_name = os.getenv('SHEET_NAME', 'Sheet1')
+            self.schedule_time = os.getenv('SCHEDULE_TIME', '09:00')
 
 class ExcelProcessor:
     def __init__(self, excel_path, sheet_name):
@@ -73,12 +86,12 @@ class DatabaseQuery:
     def execute_queries(self, start_time, end_time):
         """执行SQL查询"""
         try:
-            dsn = f"{self.config.host}:{self.config.port}/{self.config.service_name}"
-            connection = oracledb.connect(
+            connection = pymysql.connect(
+                host=self.config.host,
                 user=self.config.user,
                 password=self.config.password,
-                dsn=dsn,
-                encoding=self.config.encoding
+                database=self.config.service_name,
+                port=self.config.port
             )
 
             with connection.cursor() as cursor:
@@ -86,20 +99,20 @@ class DatabaseQuery:
                 sql1 = f"""
                 SELECT COUNT(*) 
                 FROM t_user 
-                WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                WHERE create_time >= %s
+                AND create_time < %s
                 """
-                cursor.execute(sql1, start_time=start_time, end_time=end_time)
+                cursor.execute(sql1, (start_time, end_time))
                 count1 = cursor.fetchone()[0]
 
                 # 示例SQL查询2 - 待替换为实际SQL
                 sql2 = f"""
                 SELECT COUNT(*) 
                 FROM t_user 
-                WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                WHERE create_time >= %s
+                AND create_time < %s
                 """
-                cursor.execute(sql2, start_time=start_time, end_time=end_time)
+                cursor.execute(sql2, (start_time, end_time))
                 count2 = cursor.fetchone()[0]
 
             return count1, count2
@@ -111,21 +124,16 @@ class DatabaseQuery:
             if 'connection' in locals():
                 connection.close()
 
-def job():
+def job(config):
     """定时任务主函数"""
     try:
         # 设置时间范围
         end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
         start_time = end_time - timedelta(days=1)
         
-        # 初始化配置
-        db_config = DatabaseConfig()
-        excel_path = os.getenv('EXCEL_PATH', 'report.xlsx')
-        sheet_name = os.getenv('SHEET_NAME', 'Sheet1')
-        
         # 初始化处理器
-        db_query = DatabaseQuery(db_config)
-        excel_processor = ExcelProcessor(excel_path, sheet_name)
+        db_query = DatabaseQuery(config)
+        excel_processor = ExcelProcessor(config.excel_path, config.sheet_name)
         
         # 备份Excel
         backup_path = excel_processor.backup_excel()
@@ -145,14 +153,51 @@ def job():
         print(f"执行任务时发生错误: {str(e)}")
 
 def main():
-    # 设置每天10点执行任务
-    # schedule.every().day.at("10:00").do(job)
+    # 创建命令行参数解析器
+    parser = argparse.ArgumentParser(description='SQL查询结果导出到Excel工具')
     
-    # print("定时任务已启动，将在每天10:00执行...")
-    # while True:
-        # schedule.run_pending()
-        # time.sleep(60)
-    job()
+    # 添加数据库连接参数
+    parser.add_argument('--host', help='数据库主机地址')
+    parser.add_argument('--port', type=int, help='数据库端口')
+    parser.add_argument('--user', help='数据库用户名')
+    parser.add_argument('--password', help='数据库密码')
+    parser.add_argument('--dbname', help='数据库名称')
+    parser.add_argument('--encoding', help='数据库编码')
+    
+    # 添加Excel相关参数
+    parser.add_argument('--excel-path', help='Excel文件路径')
+    parser.add_argument('--sheet-name', help='Excel工作表名称')
+    
+    # 添加运行模式参数
+    parser.add_argument('--run-now', action='store_true', help='立即执行一次，不等待定时任务')
+    parser.add_argument('--config', help='指定配置文件路径')
+
+    # 添加调度参数
+    parser.add_argument('--schedule-time', help='定时任务时间，格式为 HH:MM')
+    
+    args = parser.parse_args()
+    
+    # 如果指定了配置文件，加载配置文件
+    if args.config:
+        load_dotenv(args.config)
+    else:
+        load_dotenv()
+
+     
+    # 创建配置对象
+    config = EnvConfig(args)
+    
+    # 根据参数决定是立即执行还是运行定时任务
+    if args.run_now:
+        job(config)
+    else:
+        print("每天{}点执行任务".format(config.schedule_time))
+        # 设置定时任务
+        schedule.every().day.at(config.schedule_time).do(job, config)
+        
+        while True:
+            schedule.run_pending()
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
