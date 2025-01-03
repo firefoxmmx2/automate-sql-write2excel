@@ -8,8 +8,7 @@ import oracledb
 from dotenv import load_dotenv
 import argparse
 
-# 初始化Oracle thick mode
-oracledb.init_oracle_client()
+
 class EnvConfig:
     def __init__(self, args=None):
         # 如果提供了命令行参数，优先使用命令行参数
@@ -189,6 +188,8 @@ def main():
     # 创建配置对象
     config = EnvConfig(args)
     
+    # 初始化Oracle thick mode
+    oracledb.init_oracle_client()
     # 根据参数决定是立即执行还是运行定时任务
     if args.run_now:
         job(config)
