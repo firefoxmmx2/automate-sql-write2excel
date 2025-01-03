@@ -2,7 +2,8 @@ import PyInstaller.__main__
 import os
 import sys
 import argparse
-import glob
+
+sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 
 def build_executable(target_platform=None):
     # 获取当前目录
@@ -45,28 +46,17 @@ def build_executable(target_platform=None):
     # 定义基本打包参数
     args = [
         'main.py',
-        '--onefile',
-        '--name', f'SQLExcelReporter{"" if target_platform == "linux" else ".exe"}',
-    ]
-    
-    # 添加配置文件参数
-    args.extend(data_args)
-    
-    # 添加其他必要的依赖
-    args.extend([
-        '--collect-all', 'pandas',
-        '--collect-all', 'openpyxl',
-        '--collect-all', 'pymysql',
-        '--collect-all', 'oracledb',
-        '--collect-all', 'dotenv',
-        '--collect-all', 'schedule',
-        '--exclude', 'pyqt5',
-        '--exclude', 'pyside6',
-        '--exclude', 'qt5',
-        '--exclude', 'qt6',
-        '--exclude', 'tkinter',
+        '--noconfirm',
         '--clean',
-    ])
+        '--name=SQLExcelReporter',
+        f'--add-data=.env{separator}.',  # 添加.env文件
+        '--hidden-import=pandas',
+        '--hidden-import=pymysql',
+        '--hidden-import=schedule',
+        '--hidden-import=python-dotenv',
+        '--hidden-import=argparse',  # 添加argparse模块
+        '--onefile'
+    ]
 
     # 添加平台特定参数
     if target_platform == 'windows':
