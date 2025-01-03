@@ -5,10 +5,14 @@ import schedule
 import time
 import pandas as pd
 import oracledb
+# import pymysql
 from dotenv import load_dotenv
 
 # 加载环境变量
 load_dotenv()
+
+# 初始化Oracle thick mode
+oracledb.init_oracle_client()
 
 class DatabaseConfig:
     def __init__(self):
@@ -42,8 +46,8 @@ class ExcelProcessor:
             new_row = {
                 '开始时间': start_time,
                 '结束时间': end_time,
-                '记录数1': count1,
-                '记录数2': count2,
+                '入住旅客数': count1,
+                '15分上传不及时数': count2,
                 '完成率': completion_rate
             }
             
@@ -77,29 +81,35 @@ class DatabaseQuery:
             connection = oracledb.connect(
                 user=self.config.user,
                 password=self.config.password,
-                dsn=dsn,
-                encoding=self.config.encoding
+                dsn=dsn 
             )
+
+            # connection = pymysql.connect(
+            #     host=self.config.host,
+            #     port=self.config.port,
+            #     user=self.config.user,
+            #     password=self.config.password,
+            #     db=self.config.service_name)
 
             with connection.cursor() as cursor:
                 # 示例SQL查询1 - 待替换为实际SQL
-                sql1 = f"""
+                sql1 = """
                 SELECT COUNT(*) 
                 FROM t_user 
-                WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                WHERE create_time >= to_timestamp(:1, 'YYYYMMDDHH24MISS')
+                AND create_time < to_timestamp(:2,'YYYYMMDDHH24MISS')
                 """
-                cursor.execute(sql1, start_time=start_time, end_time=end_time)
+                cursor.execute(sql1, [start_time, end_time])
                 count1 = cursor.fetchone()[0]
 
                 # 示例SQL查询2 - 待替换为实际SQL
-                sql2 = f"""
+                sql2 = """
                 SELECT COUNT(*) 
                 FROM t_user 
-                WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                WHERE create_time >= to_timestamp(:1, 'YYYYMMDDHH24MISS')
+                AND create_time < to_timestamp(:2,'YYYYMMDDHH24MISS')
                 """
-                cursor.execute(sql2, start_time=start_time, end_time=end_time)
+                cursor.execute(sql2, [start_time, end_time])
                 count2 = cursor.fetchone()[0]
 
             return count1, count2
@@ -133,12 +143,12 @@ def job():
         
         # 执行查询
         count1, count2 = db_query.execute_queries(
-            start_time.strftime('%Y-%m-%d %H:%M:%S'),
-            end_time.strftime('%Y-%m-%d %H:%M:%S')
+            start_time.strftime('%Y%m%d%H%M%S'),
+            end_time.strftime('%Y%m%d%H%M%S')
         )
         
         # 更新Excel
-        excel_processor.update_excel(start_time, end_time, count1, count2)
+        excel_processor.update_excel(start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), count1, count2)
         print("Excel更新成功")
         
     except Exception as e:
@@ -146,13 +156,13 @@ def job():
 
 def main():
     # 设置每天10点执行任务
-    # schedule.every().day.at("10:00").do(job)
+    schedule.every().day.at("10:00").do(job)
     
-    # print("定时任务已启动，将在每天10:00执行...")
-    # while True:
-        # schedule.run_pending()
-        # time.sleep(60)
-    job()
+    print("定时任务已启动，将在每天10:00执行...")
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+    # job()
 
 if __name__ == "__main__":
     main()
