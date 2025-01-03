@@ -91,27 +91,40 @@ class DatabaseQuery:
             connection = oracledb.connect(
                 user=self.config.user,
                 password=self.config.password,
-                dsn=dsn,
-                encoding=self.config.encoding
+                dsn=dsn
             )
 
             with connection.cursor() as cursor:
                 # 示例SQL查询1 - 待替换为实际SQL
+                # sql1 = """
+                # SELECT COUNT(*) 
+                # FROM t_user 
+                # WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
+                # AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                # """
+
                 sql1 = """
                 SELECT COUNT(*) 
-                FROM t_user 
-                WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                FROM v_gnlkxx_50 v
+                WHERE v.rzsj >= TO_DATE(:start_time, 'YYYYMMDDHH24MISS')
+                AND v.rzsj < TO_DATE(:end_time, 'YYYYMMDDHH24MISS')
                 """
                 cursor.execute(sql1, start_time=start_time, end_time=end_time)
                 count1 = cursor.fetchone()[0]
 
                 # 示例SQL查询2 - 待替换为实际SQL
+                # sql2 = """
+                # SELECT COUNT(*) 
+                # FROM t_user 
+                # WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
+                # AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                # """
                 sql2 = """
                 SELECT COUNT(*) 
-                FROM t_user 
-                WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
+                FROM v_gnlkxx_50 v
+                WHERE v.rzsj >= TO_DATE(:start_time, 'YYYYMMDDHH24MISS')
+                AND v.rzsj < TO_DATE(:end_time, 'YYYYMMDDHH24MISS') 
+                AND ((v.tfsj is null and (v.gxsj-v.rzsj)*24*60 >= 15) or (v.tfsj is not null and (v.tfsj-v.rzsj)*24*60 >= 15))
                 """
                 cursor.execute(sql2, start_time=start_time, end_time=end_time)
                 count2 = cursor.fetchone()[0]

@@ -28,21 +28,6 @@ def build_executable(target_platform=None):
         'configs/*.json',         # configs 目录下的所有 .json 文件
     ]
     
-    # 构建配置文件数据参数
-    data_args = []
-    for config_pattern in config_files:
-        config_path = os.path.join(current_dir, config_pattern)
-        # 如果是通配符模式
-        if '*' in config_pattern:
-            matching_files = glob.glob(config_path)
-            for file in matching_files:
-                if os.path.exists(file):
-                    data_args.extend(['--add-data', f'{file}{separator}.'])
-        else:
-            # 单个文件
-            if os.path.exists(config_path):
-                data_args.extend(['--add-data', f'{config_path}{separator}.'])
-    
     # 定义基本打包参数
     args = [
         'main.py',
@@ -55,6 +40,10 @@ def build_executable(target_platform=None):
         '--hidden-import=schedule',
         '--hidden-import=python-dotenv',
         '--hidden-import=argparse',  # 添加argparse模块
+        '--exclude-module=PySide6',
+        '--exclude-module=PyQt6',
+        '--exclude-module=PyQt5',
+        '--exclude-module=PySide',
         '--onefile'
     ]
 

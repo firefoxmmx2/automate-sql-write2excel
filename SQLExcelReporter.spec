@@ -1,37 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
-import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
-from PyInstaller.utils.hooks import collect_all
-import os
-
-# 根据目标平台选择路径分隔符
-separator = ';' if len(sys.argv) > 1 and '--target-platform=win32' in sys.argv else ':'
-env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
-
-datas = [(env_path, '.')]
-binaries = []
-hiddenimports = []
-tmp_ret = collect_all('pandas')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('openpyxl')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('pymysql')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('dotenv')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
-tmp_ret = collect_all('schedule')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=binaries,
-    datas=datas,
-    hiddenimports=hiddenimports,
+    binaries=[],
+    datas=[('.env', '.')],
+    hiddenimports=['pandas', 'pymysql', 'schedule', 'python-dotenv', 'argparse'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['PySide6', 'PyQt6', 'PyQt5', 'PySide'],
     noarchive=False,
     optimize=0,
 )
@@ -56,6 +35,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
-    version=None,
 )
