@@ -3,7 +3,6 @@ import shutil
 from datetime import datetime, timedelta
 import schedule
 import time
-import pandas as pd
 import oracledb
 from dotenv import load_dotenv
 import argparse

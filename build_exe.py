@@ -47,19 +47,8 @@ def build_executable(target_platform=None):
         '--onefile'
     ]
 
-    # 添加平台特定参数
-    # if target_platform == 'windows':
-    #     args.extend([
-    #         '--target-platform', 'win32',
-    #         '--target-arch', 'x86_64',
-    #     ])
-    
     # 执行打包
     PyInstaller.__main__.run(args)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Build executable for different platforms')
-    parser.add_argument('--platform', choices=['windows', 'linux'], help='Target platform (windows or linux)')
-    args = parser.parse_args()
-    
-    build_executable(args.platform)
+    build_executable()
