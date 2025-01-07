@@ -48,11 +48,11 @@ def build_executable(target_platform=None):
     ]
 
     # 添加平台特定参数
-    if target_platform == 'windows':
-        args.extend([
-            '--target-platform', 'win32',
-            '--target-arch', 'x86_64',
-        ])
+    # if target_platform == 'windows':
+    #     args.extend([
+    #         '--target-platform', 'win32',
+    #         '--target-arch', 'x86_64',
+    #     ])
     
     # 执行打包
     PyInstaller.__main__.run(args)
