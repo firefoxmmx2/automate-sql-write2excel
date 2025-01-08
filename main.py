@@ -143,7 +143,12 @@ class ExcelProcessor:
                     end_ref = f"{col_letter}{total_row-1}"
                     new_formula = f"=SUM({start_ref}:{end_ref})"
                     cell.value = new_formula
-
+                elif cell_value.startswith('=') and col == completion_col:
+                    # 最后一列公式重新计算
+                    count1_letter = openpyxl.utils.get_column_letter(count1_col)
+                    count2_letter = openpyxl.utils.get_column_letter(count2_col)
+                    new_formula = f"={count1_letter}{total_row}/({count1_letter}{total_row}+{count2_letter}{total_row})%"
+                    cell.value = new_formula
             # 保存工作簿
             workbook.save(self.excel_path)
             print(f"已更新Excel文件 {self.excel_path}")
