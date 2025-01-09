@@ -102,13 +102,14 @@ class ExcelProcessor:
             for header, (value, data_type) in col_data.items():
                 if header in headers:
                     cell = sheet.cell(row=new_row_num, column=headers[header])
-                    cell.value = value
-                    
-                    # 设置特定的数据格式
+                    # 确保时间值作为字符串写入，防止Excel自动合并
                     if data_type == 'date':
-                        cell.number_format = 'yyyymmddhhmmss'
-                    elif data_type == 'number':
-                        cell.number_format = '0'
+                        cell.value = str(value)
+                        cell.number_format = '@'  # 设置为文本格式
+                    else:
+                        cell.value = value
+                        if data_type == 'number':
+                            cell.number_format = '0'
 
             # 更新完成率列的公式
             if self.config.col_completion_rate in headers:
@@ -136,14 +137,20 @@ class ExcelProcessor:
             for col in range(1, sheet.max_column + 1):
                 cell = sheet.cell(row=total_row, column=col)
                 cell_value = str(cell.value)
-                if cell_value.startswith('=') and 'SUM' in cell_value.upper():
-                    # 更新SUM公式的范围
-                    start_ref = cell_value[cell_value.find('(') + 1:cell_value.find(':')]
-                    col_letter = ''.join(filter(str.isalpha, start_ref))
-                    end_ref = f"{col_letter}{total_row-1}"
-                    new_formula = f"=SUM({start_ref}:{end_ref})"
-                    cell.value = new_formula
-
+                if cell_value.startswith('='):
+                    # 替换SUM公式范围
+                    if 'SUM' in cell_value.upper():
+                        start_ref = cell_value[cell_value.find('(') + 1:cell_value.find(':')]
+                        col_letter = ''.join(filter(str.isalpha, start_ref))
+                        end_ref = f"{col_letter}{total_row-1}"
+                        new_formula = f"=SUM({start_ref}:{end_ref})"
+                    # 最后一列的完成率公式
+                    elif col == completion_col:
+                        count1_letter = openpyxl.utils.get_column_letter(col-2)
+                        count2_letter = openpyxl.utils.get_column_letter(col-1)
+                        new_formula = f"={count1_letter}{total_row}/({count1_letter}{total_row}+{count2_letter}{total_row})"
+                        cell.value = new_formula
+                        cell.number_format = '0.00%'
             # 保存工作簿
             workbook.save(self.excel_path)
             print(f"已更新Excel文件 {self.excel_path}")
