@@ -35,11 +35,14 @@ def build_executable(target_platform=None):
         '--clean',
         '--name=SQLExcelReporter',
         f'--add-data=.env{separator}.',  # 添加.env文件
-        '--hidden-import=pandas',
-        '--hidden-import=pymysql',
         '--hidden-import=schedule',
         '--hidden-import=python-dotenv',
         '--hidden-import=argparse',  # 添加argparse模块
+        '--hidden-import=oracledb',  # 添加模块
+        '--hidden-import=openpyxl',
+        '--hidden-import=secrets',
+        '--hidden-import=asyncio',
+        '--hidden-import=uuid',
         '--exclude-module=PySide6',
         '--exclude-module=PyQt6',
         '--exclude-module=PyQt5',
