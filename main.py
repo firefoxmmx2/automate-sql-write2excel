@@ -7,6 +7,7 @@ import oracledb
 from dotenv import load_dotenv
 import argparse
 import openpyxl
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import numbers
 from copy import copy
 
@@ -30,6 +31,9 @@ class EnvConfig:
             self.col_guest_count = args.col_guest_count or os.getenv('COL_GUEST_COUNT', '入住旅客数')
             self.col_late_upload = args.col_late_upload or os.getenv('COL_LATE_UPLOAD', '15分上传不及时数')
             self.col_completion_rate = args.col_completion_rate or os.getenv('COL_COMPLETION_RATE', '完成率')
+            # 时间参数
+            self.start_time = args.start_time or os.getenv('START_TIME', '')
+            self.end_time = args.end_time or os.getenv('END_TIME', '')
         else:
             self.host = os.getenv('DB_HOST', 'localhost')
             self.user = os.getenv('DB_USER', 'system')
@@ -46,6 +50,9 @@ class EnvConfig:
             self.col_guest_count = os.getenv('COL_GUEST_COUNT', '入住旅客数')
             self.col_late_upload = os.getenv('COL_LATE_UPLOAD', '15分上传不及时数')
             self.col_completion_rate = os.getenv('COL_COMPLETION_RATE', '完成率')
+            # 时间参数
+            self.start_time = os.getenv('START_TIME', '')
+            self.end_time = os.getenv('END_TIME', '')
 
 
 class ExcelProcessor:
@@ -141,7 +148,8 @@ class ExcelProcessor:
                     # 替换SUM公式范围
                     if 'SUM' in cell_value.upper():
                         start_ref = cell_value[cell_value.find('(') + 1:cell_value.find(':')]
-                        col_letter = ''.join(filter(str.isalpha, start_ref))
+                        # 获取当前列号
+                        col_letter = get_column_letter(cell.column)
                         end_ref = f"{col_letter}{total_row-1}"
                         new_formula = f"=SUM({start_ref}:{end_ref})"
                     # 最后一列的完成率公式
@@ -167,6 +175,25 @@ class DatabaseQuery:
     def execute_queries(self, start_time, end_time):
         """执行SQL查询"""
         try:
+            # 转换时间格式
+            try:
+                # 尝试解析为YYYY-MM-DD HH:MM:SS格式
+                start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+                end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    # 尝试解析为YYYY-MM-DD格式
+                    start_dt = datetime.strptime(start_time, '%Y-%m-%d')
+                    end_dt = datetime.strptime(end_time, '%Y-%m-%d')
+                except ValueError:
+                    # 尝试解析为YYYYMMDDHHMISS格式
+                    start_dt = datetime.strptime(start_time, '%Y%m%d%H%M%S')
+                    end_dt = datetime.strptime(end_time, '%Y%m%d%H%M%S')
+            
+            # 转换为数据库需要的格式
+            start_time = start_dt.strftime('%Y%m%d%H%M%S')
+            end_time = end_dt.strftime('%Y%m%d%H%M%S')
+            
             dsn = f"{self.config.host}:{self.config.port}/{self.config.service_name}"
             connection = oracledb.connect(
                 user=self.config.user,
@@ -223,8 +250,13 @@ def job(config):
     """定时任务主函数"""
     try:
         # 设置时间范围
-        end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        start_time = end_time - timedelta(days=1)
+        # 优先使用配置的时间参数，如果没有配置则使用默认时间范围
+        if config.start_time and config.end_time:
+            start_time = datetime.strptime(config.start_time, '%Y%m%d%H%M%S')
+            end_time = datetime.strptime(config.end_time, '%Y%m%d%H%M%S')
+        else:
+            end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            start_time = end_time - timedelta(days=1)
         
         # 初始化处理器
         db_query = DatabaseQuery(config)
@@ -270,6 +302,10 @@ def main():
     parser.add_argument('--col-guest-count', help='入住旅客数列名')
     parser.add_argument('--col-late-upload', help='15分上传不及时数列名')
     parser.add_argument('--col-completion-rate', help='完成率列名')
+    
+    # 添加时间参数
+    parser.add_argument('--start-time', help='开始时间，支持格式：YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD 或 YYYYMMDDHHMISS')
+    parser.add_argument('--end-time', help='结束时间，支持格式：YYYY-MM-DD HH:MM:SS 或 YYYY-MM-DD 或 YYYYMMDDHHMISS')
     
     # 添加运行模式参数
     parser.add_argument('--run-now', action='store_true', help='立即执行一次，不等待定时任务')
