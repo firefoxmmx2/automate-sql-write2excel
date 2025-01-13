@@ -175,25 +175,6 @@ class DatabaseQuery:
     def execute_queries(self, start_time, end_time):
         """执行SQL查询"""
         try:
-            # 转换时间格式
-            try:
-                # 尝试解析为YYYY-MM-DD HH:MM:SS格式
-                start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-                end_dt = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-            except ValueError:
-                try:
-                    # 尝试解析为YYYY-MM-DD格式
-                    start_dt = datetime.strptime(start_time, '%Y-%m-%d')
-                    end_dt = datetime.strptime(end_time, '%Y-%m-%d')
-                except ValueError:
-                    # 尝试解析为YYYYMMDDHHMISS格式
-                    start_dt = datetime.strptime(start_time, '%Y%m%d%H%M%S')
-                    end_dt = datetime.strptime(end_time, '%Y%m%d%H%M%S')
-            
-            # 转换为数据库需要的格式
-            start_time = start_dt.strftime('%Y%m%d%H%M%S')
-            end_time = end_dt.strftime('%Y%m%d%H%M%S')
-            
             dsn = f"{self.config.host}:{self.config.port}/{self.config.service_name}"
             connection = oracledb.connect(
                 user=self.config.user,
@@ -252,8 +233,24 @@ def job(config):
         # 设置时间范围
         # 优先使用配置的时间参数，如果没有配置则使用默认时间范围
         if config.start_time and config.end_time:
-            start_time = datetime.strptime(config.start_time, '%Y%m%d%H%M%S')
-            end_time = datetime.strptime(config.end_time, '%Y%m%d%H%M%S')
+            # 转换时间格式
+            try:
+                # 尝试解析为YYYY-MM-DD HH:MM:SS格式
+                start_dt = datetime.strptime(config.start_time, '%Y-%m-%d %H:%M:%S')
+                end_dt = datetime.strptime(config.end_time, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    # 尝试解析为YYYY-MM-DD格式
+                    start_dt = datetime.strptime(config.start_time, '%Y-%m-%d')
+                    end_dt = datetime.strptime(config.end_time, '%Y-%m-%d')
+                except ValueError:
+                    # 尝试解析为YYYYMMDDHHMISS格式
+                    start_dt = datetime.strptime(config.start_time, '%Y%m%d%H%M%S')
+                    end_dt = datetime.strptime(config.end_time, '%Y%m%d%H%M%S')
+            
+            # 转换为数据库需要的格式
+            start_time = start_dt.strftime('%Y%m%d%H%M%S')
+            end_time = end_dt.strftime('%Y%m%d%H%M%S')
         else:
             end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             start_time = end_time - timedelta(days=1)
@@ -327,7 +324,7 @@ def main():
     config = EnvConfig(args)
     
     # 初始化Oracle thick mode
-    oracledb.init_oracle_client()
+    # oracledb.init_oracle_client()
     # 根据参数决定是立即执行还是运行定时任务
     if args.run_now:
         job(config)
