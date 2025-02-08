@@ -250,6 +250,7 @@ def job(config):
             
             # 转换为数据库需要的格式
             start_time = start_dt.strftime('%Y%m%d%H%M%S')
+            print(f"转换后的开始时间：{start_time}")
             end_time = end_dt.strftime('%Y%m%d%H%M%S')
         else:
             end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -263,15 +264,12 @@ def job(config):
         backup_path = excel_processor.backup_excel()
         print(f"Excel已备份到: {backup_path}")
         
-        # 执行查询
-        count1, count2 = db_query.execute_queries(
-            start_time.strftime('%Y%m%d%H%M%S'),
-            end_time.strftime('%Y%m%d%H%M%S')
-        )
+        # 使用已格式化的时间字符串执行查询和更新
+        count1, count2 = db_query.execute_queries(start_time, end_time)
         
-        # 更新Excel
-        excel_processor.update_excel(start_time.strftime('%Y%m%d%H%M%S'), end_time.strftime('%Y%m%d%H%M%S'), count1, count2)
-        print("Excel更新成功")
+        # 更新Excel(直接使用已格式化时间字符串)
+        excel_processor.update_excel(start_time, end_time, count1, count2)
+        print(f"Excel更新成功 | 时间范围: {start_time} 至 {end_time}")
         
     except Exception as e:
         print(f"执行任务时发生错误: {str(e)}")
