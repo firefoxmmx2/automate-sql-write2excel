@@ -14,45 +14,46 @@ from copy import copy
 
 class EnvConfig:
     def __init__(self, args=None):
-        # 如果提供了命令行参数，优先使用命令行参数
-        if args:
-            self.host = args.host or os.getenv('DB_HOST', 'localhost')
-            self.user = args.user or os.getenv('DB_USER', 'system')
-            self.password = args.password or os.getenv('DB_PASSWORD', '')
-            self.service_name = args.dbname or os.getenv('DB_NAME', 'orcl')
-            self.port = args.port or int(os.getenv('DB_PORT', '1521'))
-            self.encoding = args.encoding or os.getenv('DB_ENCODING', 'UTF-8')
-            self.excel_path = args.excel_path or os.getenv('EXCEL_PATH', 'report.xlsx')
-            self.sheet_name = args.sheet_name or os.getenv('SHEET_NAME', 'Sheet1')
-            self.schedule_time = args.schedule_time or os.getenv('SCHEDULE_TIME', '09:00')
-            # Excel column names
-            self.col_start_time = args.col_start_time or os.getenv('COL_START_TIME', '开始时间')
-            self.col_end_time = args.col_end_time or os.getenv('COL_END_TIME', '结束时间')
-            self.col_guest_count = args.col_guest_count or os.getenv('COL_GUEST_COUNT', '入住旅客数')
-            self.col_late_upload = args.col_late_upload or os.getenv('COL_LATE_UPLOAD', '15分上传不及时数')
-            self.col_completion_rate = args.col_completion_rate or os.getenv('COL_COMPLETION_RATE', '完成率')
+        """初始化配置参数（命令行参数优先于环境变量）"""
+        self._load_config(args)
+
+    def _load_config(self, args) -> None:
+        """加载配置参数的内部方法"""
+        config_mapping = {
+            # 数据库配置
+            'host': ('DB_HOST', 'localhost'),
+            'user': ('DB_USER', 'system'),
+            'password': ('DB_PASSWORD', ''),
+            'service_name': ('DB_NAME', 'orcl'),
+            'port': ('DB_PORT', 1521),
+            'encoding': ('DB_ENCODING', 'UTF-8'),
+            # Excel配置
+            'excel_path': ('EXCEL_PATH', 'report.xlsx'),
+            'sheet_name': ('SHEET_NAME', 'Sheet1'),
+            'schedule_time': ('SCHEDULE_TIME', '09:00'),
+            # 列名配置
+            'col_start_time': ('COL_START_TIME', '开始时间'),
+            'col_end_time': ('COL_END_TIME', '结束时间'),
+            'col_guest_count': ('COL_GUEST_COUNT', '入住旅客数'),
+            'col_late_upload': ('COL_LATE_UPLOAD', '15分上传不及时数'),  # 修正参数名保持一致
+            'col_completion_rate': ('COL_COMPLETION_RATE', '完成率'),
             # 时间参数
-            self.start_time = args.start_time or os.getenv('START_TIME', '')
-            self.end_time = args.end_time or os.getenv('END_TIME', '')
-        else:
-            self.host = os.getenv('DB_HOST', 'localhost')
-            self.user = os.getenv('DB_USER', 'system')
-            self.password = os.getenv('DB_PASSWORD', '')
-            self.service_name = os.getenv('DB_NAME', 'orcl')
-            self.port = int(os.getenv('DB_PORT', '1521'))
-            self.encoding = os.getenv('DB_ENCODING', 'UTF-8')
-            self.excel_path = os.getenv('EXCEL_PATH', 'report.xlsx')
-            self.sheet_name = os.getenv('SHEET_NAME', 'Sheet1')
-            self.schedule_time = os.getenv('SCHEDULE_TIME', '09:00')
-            # Excel column names
-            self.col_start_time = os.getenv('COL_START_TIME', '开始时间')
-            self.col_end_time = os.getenv('COL_END_TIME', '结束时间')
-            self.col_guest_count = os.getenv('COL_GUEST_COUNT', '入住旅客数')
-            self.col_late_upload = os.getenv('COL_LATE_UPLOAD', '15分上传不及时数')
-            self.col_completion_rate = os.getenv('COL_COMPLETION_RATE', '完成率')
-            # 时间参数
-            self.start_time = os.getenv('START_TIME', '')
-            self.end_time = os.getenv('END_TIME', '')
+            'start_time': ('START_TIME', ''),
+            'end_time': ('END_TIME', '')
+        }
+
+        for attr, (env_var, default) in config_mapping.items():
+            # 类型转换函数(根据属性名特殊处理)
+            converter = lambda x: int(x) if attr == 'port' else x
+            # 获取参数值（命令行参数优先）
+            arg_value = getattr(args, attr, None) if args else None
+            env_value = os.getenv(env_var, default)
+            
+            # 特殊处理端口号的类型转换
+            if attr == 'port' and not isinstance(env_value, int):
+                env_value = int(env_value) if env_value else default
+            
+            setattr(self, attr, arg_value or env_value)
 
 
 class ExcelProcessor:
@@ -67,36 +68,69 @@ class ExcelProcessor:
         shutil.copy2(self.excel_path, backup_path)
         return backup_path
 
-    def update_excel(self, start_time, end_time, count1, count2):
-        """更新Excel文件，保留原有格式和其他工作表"""
+    def update_excel(self, start_time: str, end_time: str, count1: int, count2: int) -> None:
+        """更新Excel文件并保持原有格式
+        
+        Args:
+            start_time: 开始时间字符串（格式：YYYYMMDDHHMISS）
+            end_time: 结束时间字符串（格式：YYYYMMDDHHMISS）
+            count1: 入住旅客数
+            count2: 15分上传不及时数
+        """
         try:
-            # 使用openpyxl加载整个工作簿，保持数据和格式
+            # 加载工作簿并获取目标工作表
             workbook = openpyxl.load_workbook(self.excel_path, data_only=False)
             sheet = workbook[self.sheet_name]
 
-            # 找到最后一行（不包括合计行）
-            last_row = sheet.max_row - 1  # 减1是为了排除合计行
+            # 获取列头映射（使用字典推导式优化）
+            headers = {
+                cell.value: col
+                for col in range(1, sheet.max_column + 1)
+                if (cell := sheet.cell(row=1, column=col)).value in {
+                    self.config.col_start_time,
+                    self.config.col_end_time,
+                    self.config.col_guest_count,
+                    self.config.col_late_upload,
+                    self.config.col_completion_rate
+                }
+            }
 
-            # 获取列标题和对应的列号
-            headers = {}
-            for col in range(1, sheet.max_column + 1):
-                cell_value = sheet.cell(row=1, column=col).value
-                if cell_value in [self.config.col_start_time, self.config.col_end_time,
-                                self.config.col_guest_count, self.config.col_late_upload,
-                                self.config.col_completion_rate]:
-                    headers[cell_value] = col
+            # 计算插入位置（排除最后的合计行）
+            last_data_row = sheet.max_row - 1
 
             # 插入新行在倒数第二行（保持合计行在最后）
-            sheet.insert_rows(last_row + 1)
-            new_row_num = last_row + 1
+            sheet.insert_rows(last_data_row + 1)
+            new_row_num = last_data_row + 1
 
-            # 复制上一行的格式到新行
-            for col in range(1, sheet.max_column + 1):
-                source_cell = sheet.cell(row=last_row, column=col)
-                target_cell = sheet.cell(row=new_row_num, column=col)
-                if source_cell.has_style:
-                    target_cell._style = copy(source_cell._style)
-                    target_cell.number_format = source_cell.number_format
+            # 复制上一行的格式到新行（优化样式复制）
+            if last_data_row >= 1:  # 确保至少有一行数据
+                source_row = sheet[last_data_row]
+                target_row = sheet[new_row_num]
+                for src_cell, tgt_cell in zip(source_row, target_row):
+                    if src_cell.has_style:
+                        # 复制完整单元格样式
+                        tgt_cell._style = copy(src_cell._style)
+                        # 显式复制关键格式属性
+                        tgt_cell.number_format = src_cell.number_format
+                        tgt_cell.font = copy(src_cell.font)
+                        tgt_cell.border = copy(src_cell.border)
+                        tgt_cell.fill = copy(src_cell.fill)
+                        tgt_cell.alignment = copy(src_cell.alignment)
+                        # 复制列宽设置（增加异常处理）
+                        src_col = get_column_letter(src_cell.column)
+                        tgt_col = get_column_letter(tgt_cell.column)
+                        try:
+                            # 安全获取列宽设置
+                            src_width = sheet.column_dimensions[src_col].width
+                            sheet.column_dimensions[tgt_col].width = src_width
+                        except KeyError:
+                            # 源列不存在时使用默认列宽并记录警告
+                            sheet.column_dimensions[tgt_col].width = 15
+                            print(f"警告：列 {src_col} 的宽度未定义，已使用默认值 15")
+                        tgt_cell.font = copy(src_cell.font)
+                        tgt_cell.border = copy(src_cell.border)
+                        tgt_cell.fill = copy(src_cell.fill)
+                        tgt_cell.alignment = copy(src_cell.alignment)
 
             # 写入新数据并设置适当的格式
             col_data = {
@@ -169,55 +203,56 @@ class ExcelProcessor:
 
 
 class DatabaseQuery:
-    def __init__(self, config):
-        self.config = config
+    # 定义SQL查询语句为类常量
+    # 基础查询：统计时间段内有效入住记录
+    BASE_QUERY = """
+        SELECT COUNT(1) 
+        FROM v_gnlkxx_50 v
+        WHERE v.rzsj >= TO_DATE(:start_time, 'YYYYMMDDHH24MISS')
+          AND v.rzsj < TO_DATE(:end_time, 'YYYYMMDDHH24MISS')
+    """
+    
+    LATE_UPLOAD_CONDITION = """
+        AND ((v.tfsj IS NULL AND (v.gxsj - v.rzsj) * 24 * 60 >= 15)
+        OR (v.tfsj IS NOT NULL AND (v.gxsj - v.tfsj) * 24 * 60 >= 15))
+    """
 
-    def execute_queries(self, start_time, end_time):
-        """执行SQL查询"""
+    def __init__(self, config: EnvConfig):
+        """初始化数据库查询器
+        Args:
+            config: 包含数据库配置的EnvConfig实例
+        """
+        self.config = config
+        self.dsn = f"{config.host}:{config.port}/{config.service_name}"
+
+    def execute_queries(self, start_time: str, end_time: str) -> tuple[int, int]:
+        """执行并返回两个查询结果
+        Args:
+            start_time: 开始时间（YYYYMMDDHH24MISS格式）
+            end_time: 结束时间（YYYYMMDDHH24MISS格式）
+        Returns:
+            元组包含 (普通查询结果, 延迟上传查询结果)
+        """
         try:
-            dsn = f"{self.config.host}:{self.config.port}/{self.config.service_name}"
-            connection = oracledb.connect(
+            with oracledb.connect(
                 user=self.config.user,
                 password=self.config.password,
-                dsn=dsn
-            )
+                dsn=self.dsn
+            ) as connection:
+                with connection.cursor() as cursor:
+                    # 执行基础查询
+                    cursor.execute(self.BASE_QUERY,
+                                 start_time=start_time,
+                                 end_time=end_time)
+                    count1 = cursor.fetchone()[0]
 
-            with connection.cursor() as cursor:
-                # 示例SQL查询1 - 待替换为实际SQL
-                # sql1 = """
-                # SELECT COUNT(*) 
-                # FROM t_user 
-                # WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                # AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
-                # """
+                    # 执行带延迟条件的查询
+                    cursor.execute(f"{self.BASE_QUERY} {self.LATE_UPLOAD_CONDITION}",
+                                 start_time=start_time,
+                                 end_time=end_time)
+                    count2 = cursor.fetchone()[0]
 
-                sql1 = """
-                SELECT COUNT(*) 
-                FROM v_gnlkxx_50 v
-                WHERE v.rzsj >= TO_DATE(:start_time, 'YYYYMMDDHH24MISS')
-                AND v.rzsj < TO_DATE(:end_time, 'YYYYMMDDHH24MISS')
-                """
-                cursor.execute(sql1, start_time=start_time, end_time=end_time)
-                count1 = cursor.fetchone()[0]
-
-                # 示例SQL查询2 - 待替换为实际SQL
-                # sql2 = """
-                # SELECT COUNT(*) 
-                # FROM t_user 
-                # WHERE create_time >= TO_TIMESTAMP(:start_time, 'YYYY-MM-DD HH24:MI:SS')
-                # AND create_time < TO_TIMESTAMP(:end_time, 'YYYY-MM-DD HH24:MI:SS')
-                # """
-                sql2 = """
-                SELECT COUNT(*) 
-                FROM v_gnlkxx_50 v
-                WHERE v.rzsj >= TO_DATE(:start_time, 'YYYYMMDDHH24MISS')
-                AND v.rzsj < TO_DATE(:end_time, 'YYYYMMDDHH24MISS') 
-                AND ((v.tfsj is null and (v.gxsj-v.rzsj)*24*60 >= 15) or (v.tfsj is not null and (v.gxsj-v.tfsj)*24*60 >= 15))
-                """
-                cursor.execute(sql2, start_time=start_time, end_time=end_time)
-                count2 = cursor.fetchone()[0]
-
-            return count1, count2
+                    return count1, count2
 
         except Exception as e:
             print(f"执行数据库查询时发生错误: {str(e)}")
@@ -322,7 +357,7 @@ def main():
     config = EnvConfig(args)
     
     # 初始化Oracle thick mode
-    # oracledb.init_oracle_client()
+    oracledb.init_oracle_client()
     # 根据参数决定是立即执行还是运行定时任务
     if args.run_now:
         job(config)
