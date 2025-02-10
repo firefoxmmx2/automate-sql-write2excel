@@ -159,11 +159,11 @@ class ExcelProcessor:
                 count2_col = headers[self.config.col_late_upload]
                 
                 # 获取完成率的计算公式
-                formula_cell = sheet.cell(row=last_row, column=completion_col)
+                formula_cell = sheet.cell(row=last_data_row, column=completion_col)
                 formula_value = str(formula_cell.value)
                 if formula_value.startswith('='):
                     # 如果存在公式，复制并更新行号
-                    new_formula = formula_value.replace(str(last_row), str(new_row_num))
+                    new_formula = formula_value.replace(str(last_data_row), str(new_row_num))
                     sheet.cell(row=new_row_num, column=completion_col).value = new_formula
                 else:
                     # 如果没有公式，创建新的公式
@@ -186,6 +186,7 @@ class ExcelProcessor:
                         col_letter = get_column_letter(cell.column)
                         end_ref = f"{col_letter}{total_row-1}"
                         new_formula = f"=SUM({start_ref}:{end_ref})"
+                        cell.value = new_formula
                     # 最后一列的完成率公式
                     elif col == completion_col:
                         count1_letter = openpyxl.utils.get_column_letter(col-2)
@@ -362,7 +363,7 @@ def main():
     config = EnvConfig(args)
     
     # 初始化Oracle thick mode
-    oracledb.init_oracle_client()
+    # oracledb.init_oracle_client()
     # 根据参数决定是立即执行还是运行定时任务
     if args.run_now:
         job(config)
