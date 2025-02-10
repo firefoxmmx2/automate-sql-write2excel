@@ -223,7 +223,15 @@ class DatabaseQuery:
             config: 包含数据库配置的EnvConfig实例
         """
         self.config = config
-        self.dsn = f"{config.host}:{config.port}/{config.service_name}"
+        # 修正连接字符串格式（SID使用//host:port/SID，Service Name使用host:port/ServiceName）
+        # 初始化Oracle客户端库（添加lib_dir参数如果需要）
+        oracledb.init_oracle_client()
+        # 创建带服务名的DSN
+        self.dsn = oracledb.makedsn(
+            config.host,
+            config.port,
+            service_name=config.service_name
+        )
 
     def execute_queries(self, start_time: str, end_time: str) -> tuple[int, int]:
         """执行并返回两个查询结果
@@ -257,9 +265,6 @@ class DatabaseQuery:
         except Exception as e:
             print(f"执行数据库查询时发生错误: {str(e)}")
             raise
-        finally:
-            if 'connection' in locals():
-                connection.close()
 
 
 def job(config):
