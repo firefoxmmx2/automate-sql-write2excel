@@ -291,11 +291,13 @@ def job(config):
             
             # 转换为数据库需要的格式
             start_time = start_dt.strftime('%Y%m%d%H%M%S')
-            print(f"转换后的开始时间：{start_time}")
             end_time = end_dt.strftime('%Y%m%d%H%M%S')
         else:
             end_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
             start_time = end_time - timedelta(days=1)
+            # 转化为数据库需要的格式
+            end_time = end_time.strftime('%Y%m%d%H%M%S')
+            start_time = start_time.strftime('%Y%m%d%H%M%S')
         
         # 初始化处理器
         db_query = DatabaseQuery(config)
